@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>argus_stereo_sync</name>
+  <version>0.0.1</version>
+  
+  <description>The argus_stereo_sync package</description>
+  <maintainer email="nkhera@andrew.cmu.edu">Neil Khera</maintainer>
+  <license>BSD</license>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>sensor_msgs</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+</package>

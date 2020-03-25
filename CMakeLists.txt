@@ -1,18 +1,30 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required(VERSION 3.1)
+project(argus_stereo_sync)
 
-project(ArgusSync)
+set(ARGUS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs/jetson_multimedia_api/argus)
+set(CMAKE_MODULE_PATH ${ARGUS_DIR}/cmake "${CMAKE_MODULE_PATH}")
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_MODULE_PATH}")
+add_subdirectory(${ARGUS_DIR}/samples/utils)
 
+find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs)
 find_package(Argus REQUIRED)
 find_package(EGL REQUIRED)
-find_package(OpenCV REQUIRED)
 
-set(SOURCES main.cpp)
+catkin_package()
 
-include_directories(${ARGUS_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/samples/utils)
-add_executable(${PROJECT_NAME} ${SOURCES})
-target_link_libraries(${PROJECT_NAME} ${ARGUS_LIBRARIES} ${OpenCV_LIBS} argussampleutils)
+add_executable(${PROJECT_NAME} src/main.cpp)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-include(CPack)
+target_link_libraries(${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+    ${ARGUS_LIBRARIES}
+    ${EGL_LIBRARIES}
+    argussampleutils     
+)
+
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+    ${catkin_INCLUDE_DIRS}
+    ${ARGUS_INCLUDE_DIRS}   
+    ${EGL_INCLUDE_DIRS}
+    ${ARGUS_DIR}/samples/utils
+)
