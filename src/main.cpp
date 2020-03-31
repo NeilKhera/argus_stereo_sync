@@ -78,14 +78,14 @@ bool StereoConsumerThread::threadExecute() {
   while (true) {
     EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
     if (!eglQueryStreamKHR(leftIStream->getEGLDisplay(), leftIStream->getEGLStream(), 
-			   EGL_STREAM_STATE_KHR, &streamState) ||
+	EGL_STREAM_STATE_KHR, &streamState) ||
         (streamState == EGL_STREAM_STATE_DISCONNECTED_KHR)) {
       CONSUMER_PRINT("EGL_STREAM_STATE_DISCONNECTED_KHR received\n");
       break;
     }
 
     if (!eglQueryStreamKHR(rightIStream->getEGLDisplay(), rightIStream->getEGLStream(),
-			   EGL_STREAM_STATE_KHR, &streamState) ||
+	EGL_STREAM_STATE_KHR, &streamState) ||
         (streamState == EGL_STREAM_STATE_DISCONNECTED_KHR)) {
       CONSUMER_PRINT("EGL_STREAM_STATE_DISCONNECTED_KHR received\n");
       break;
@@ -105,6 +105,24 @@ bool StereoConsumerThread::threadExecute() {
 
     Image *left_image = left_iframe->getImage();
     Image *right_image = right_iframe->getImage();
+
+    IImage *left_iimage = interface_cast<IImage>(left_image);
+    IImage *right_iimage = interface_cast<IImage>(right_image);
+    IImage2D *left_iimage2d = interface_cast<IImage2D>(left_image);
+    IImage2D *right_iimage2d = interface_cast<IImage2D>(right_image);
+
+    uint32_t buffer_count_left = left_iimage->getBufferCount();
+    uint32_t buffer_count_right = right_iimage->getBufferCount();
+    //uint64_t* buffer_size_left = (uint64_t*) malloc(buffer_count_left * sizeof(uint64_t));
+    //uint64_t* buffer_size_right = (uint64_t*) malloc(buffer_count_right * sizeof(uint64_t));
+    //Size* image_size_left = (Size*) malloc(buffer_count_left * sizeof(Size));
+    //Size* image_size_right = (Size*) malloc(buffer_count_right * sizeof(Size));
+    //uint32_t* image_stride_left = (uint32_t*) malloc(buffer_count_left * sizeof(uint32_t));
+    //uint32_t* image_stride_right = (uint32_t*) malloc(buffer_count_right * sizeof(uint32_t));
+    //const unsigned char** buf_left = (const unsigned char**) malloc(buffer_count_left * sizeof(const unsigned char*));
+    //const unsigned char** buf_right = (const unsigned char**) malloc(buffer_count_right * sizeof(const unsigned char*));
+
+    std::cout << "\nNumber of buffers : " << buffer_count_left << " and " << buffer_count_right << "\n";
   }
 
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
