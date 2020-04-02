@@ -1,8 +1,10 @@
 #include <ros/ros.h>
+#include <ros/console.h>
 #include <sensor_msgs/Image.h>
 
 #include <Argus/Argus.h>
 #include <EGLStream/EGLStream.h>
+#include <EGLStream/NV/ImageNativeBuffer.h>
 #include <iostream>
 #include <iomanip>
 #include <csignal>
@@ -75,7 +77,9 @@ bool StereoConsumerThread::threadExecute() {
   CONSUMER_PRINT("Streams connected, processing frames.\n");
 
   int frameCount = 0;
+  CONSUMER_PRINT("BEEP1");
   while (true) {
+    CONSUMER_PRINT("BEEP");
     EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
     if (!eglQueryStreamKHR(leftIStream->getEGLDisplay(), leftIStream->getEGLStream(), 
 	EGL_STREAM_STATE_KHR, &streamState) ||
@@ -105,24 +109,26 @@ bool StereoConsumerThread::threadExecute() {
 
     Image *left_image = left_iframe->getImage();
     Image *right_image = right_iframe->getImage();
+    if (!left_image || !right_image) {
+      break;
+    }
 
-    IImage *left_iimage = interface_cast<IImage>(left_image);
-    IImage *right_iimage = interface_cast<IImage>(right_image);
-    IImage2D *left_iimage2d = interface_cast<IImage2D>(left_image);
-    IImage2D *right_iimage2d = interface_cast<IImage2D>(right_image);
+    NV::IImageNativeBuffer *left_inative_buffer = interface_cast<NV::IImageNativeBuffer>(left_image);
+    NV::IImageNativeBuffer *right_inative_buffer = interface_cast<NV::IImageNativeBuffer>(right_image);
+    if (!left_inative_buffer || !right_inative_buffer) {
+      break;
+    }
 
-    uint32_t buffer_count_left = left_iimage->getBufferCount();
-    uint32_t buffer_count_right = right_iimage->getBufferCount();
-    //uint64_t* buffer_size_left = (uint64_t*) malloc(buffer_count_left * sizeof(uint64_t));
-    //uint64_t* buffer_size_right = (uint64_t*) malloc(buffer_count_right * sizeof(uint64_t));
-    //Size* image_size_left = (Size*) malloc(buffer_count_left * sizeof(Size));
-    //Size* image_size_right = (Size*) malloc(buffer_count_right * sizeof(Size));
-    //uint32_t* image_stride_left = (uint32_t*) malloc(buffer_count_left * sizeof(uint32_t));
-    //uint32_t* image_stride_right = (uint32_t*) malloc(buffer_count_right * sizeof(uint32_t));
-    //const unsigned char** buf_left = (const unsigned char**) malloc(buffer_count_left * sizeof(const unsigned char*));
-    //const unsigned char** buf_right = (const unsigned char**) malloc(buffer_count_right * sizeof(const unsigned char*));
-
-    std::cout << "\nNumber of buffers : " << buffer_count_left << " and " << buffer_count_right << "\n";
+    int left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_YUV420, NvBufferLayout_Pitch);
+    void *pdata = NULL;
+    NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &pdata);
+    NvBufferMemSyncForCpu(left_fd, 0, &pdata);
+    cv::Mat imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(),CV_8UC3, pdata);
+    cv::Mat display_img;
+    cvtColor(imgbuf, display_img, CV_YCrCb2RGB);
+    NvBufferMemUnMap(left_fd, 0, &pdata);
+    cv::imshow("img", display_img);
+    cv::waitKey(1);
   }
 
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
@@ -191,7 +197,7 @@ static bool execute() {
   if (!iStreamSettings || !iEGLStreamSettings) {
     ORIGINATE_ERROR("Failed to create OutputStreamSettings");
   }
-  iEGLStreamSettings->setPixelFormat(PIXEL_FMT_RAW16);
+  iEGLStreamSettings->setPixelFormat(PIXEL_FMT_YCbCr_420_888);
   iEGLStreamSettings->setResolution(STREAM_SIZE);
   iEGLStreamSettings->setEGLDisplay(g_display.get());
   iEGLStreamSettings->setMetadataEnable(true);

@@ -2,29 +2,59 @@ cmake_minimum_required(VERSION 3.1)
 project(argus_stereo_sync)
 
 set(ARGUS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs/jetson_multimedia_api/argus)
-set(CMAKE_MODULE_PATH ${ARGUS_DIR}/cmake "${CMAKE_MODULE_PATH}")
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake "${CMAKE_MODULE_PATH}")
 
-add_subdirectory(${ARGUS_DIR}/samples/utils)
-
+#add_subdirectory(${ARGUS_DIR}/samples/utils)
 find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs)
+find_package(NVMMAPI REQUIRED)
 find_package(Argus REQUIRED)
 find_package(EGL REQUIRED)
 
-catkin_package()
+add_library(utils_lib
+    ${ARGUS_DIR}/samples/utils/ArgusHelpers.cpp
+    ${ARGUS_DIR}/samples/utils/CommonOptions.cpp
+    #${ARGUS_DIR}/samples/utils/EGLGlobal.cpp
+    #${ARGUS_DIR}/samples/utils/JPEGConsumer.cpp
+    ${ARGUS_DIR}/samples/utils/NativeBuffer.cpp
+    #${ARGUS_DIR}/samples/utils/Observed.cpp
+    #${ARGUS_DIR}/samples/utils/Options.cpp
+    #${ARGUS_DIR}/samples/utils/RectUtils.cpp
+    ${ARGUS_DIR}/samples/utils/Thread.cpp
+    #${ARGUS_DIR}/samples/utils/WindowBase.cpp
+    #${ARGUS_DIR}/samples/utils/gtk/GuiElement.cpp
+    #${ARGUS_DIR}/samples/utils/gtk/Window.cpp
+    ${ARGUS_DIR}/samples/utils/nvmmapi/NvNativeBuffer.cpp
+)
 
+target_include_directories(utils_lib PUBLIC 
+    ${ARGUS_DIR}/samples/utils
+    ${ARGUS_DIR}/../include
+)
+
+#target_link_libraries(utils_lib PRIVATE
+#    ${catkin_LIBRARIES}
+#    ${NVMMAPI_LIBRARIES}
+#    ${ARGUS_LIBRARIES}
+#    ${EGL_LIBRARIES}
+#)
+
+catkin_package()
 add_executable(${PROJECT_NAME} src/main.cpp)
 
 target_link_libraries(${PROJECT_NAME}
     ${catkin_LIBRARIES}
+    ${NVMMAPI_LIBRARIES}
     ${ARGUS_LIBRARIES}
     ${EGL_LIBRARIES}
-    argussampleutils     
+    utils_lib
+    #argussampleutils
 )
 
 target_include_directories(${PROJECT_NAME}
     PRIVATE
     ${catkin_INCLUDE_DIRS}
-    ${ARGUS_INCLUDE_DIRS}   
+    ${NVMMAPI_INCLUDE_DIRS}
+    ${ARGUS_INCLUDE_DIRS}
     ${EGL_INCLUDE_DIRS}
-    ${ARGUS_DIR}/samples/utils
+    #${ARGUS_DIR}/samples/utils
 )
