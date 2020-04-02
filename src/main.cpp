@@ -1,13 +1,17 @@
-#include <ros/ros.h>
-#include <ros/console.h>
-#include <sensor_msgs/Image.h>
-
-#include <Argus/Argus.h>
-#include <EGLStream/EGLStream.h>
-#include <EGLStream/NV/ImageNativeBuffer.h>
 #include <iostream>
 #include <iomanip>
 #include <csignal>
+
+#include <ros/ros.h>
+#include <ros/console.h>
+#include <sensor_msgs/Image.h>
+#include <cv_bridge/cv_bridge.h>
+
+#include <opencv2/highgui/highgui.hpp>
+
+#include "Argus/Argus.h"
+#include "EGLStream/EGLStream.h"
+#include "EGLStream/NV/ImageNativeBuffer.h"
 
 #include "ArgusHelpers.h"
 #include "CommonOptions.h"
@@ -30,7 +34,7 @@ IEGLOutputStream *iStreamRight;
 UniqueObj<CameraProvider> cameraProvider;
 
 static const Size2D<uint32_t> STREAM_SIZE(1280, 720);
-static const uint32_t FRAMERATE = 5;
+static const uint32_t FRAMERATE = 30;
 
 #define PRODUCER_PRINT(...) printf("PRODUCER: " __VA_ARGS__)
 #define CONSUMER_PRINT(...) printf("CONSUMER: " __VA_ARGS__)
@@ -38,7 +42,6 @@ static const uint32_t FRAMERATE = 5;
 class StereoConsumerThread : public Thread {
 
   public:
-    //explicit StereoConsumerThread() {}
     explicit StereoConsumerThread(OutputStream *leftStream, OutputStream *rightStream)
         : m_leftStream(leftStream), m_rightStream(rightStream) {}
     ~StereoConsumerThread() {}
@@ -77,9 +80,7 @@ bool StereoConsumerThread::threadExecute() {
   CONSUMER_PRINT("Streams connected, processing frames.\n");
 
   int frameCount = 0;
-  CONSUMER_PRINT("BEEP1");
   while (true) {
-    CONSUMER_PRINT("BEEP");
     EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
     if (!eglQueryStreamKHR(leftIStream->getEGLDisplay(), leftIStream->getEGLStream(), 
 	EGL_STREAM_STATE_KHR, &streamState) ||
@@ -119,13 +120,13 @@ bool StereoConsumerThread::threadExecute() {
       break;
     }
 
-    int left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_YUV420, NvBufferLayout_Pitch);
+    int left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
     void *pdata = NULL;
     NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &pdata);
     NvBufferMemSyncForCpu(left_fd, 0, &pdata);
-    cv::Mat imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(),CV_8UC3, pdata);
+    cv::Mat imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, pdata);
     cv::Mat display_img;
-    cvtColor(imgbuf, display_img, CV_YCrCb2RGB);
+    cvtColor(imgbuf, display_img, CV_RGBA2BGR);
     NvBufferMemUnMap(left_fd, 0, &pdata);
     cv::imshow("img", display_img);
     cv::waitKey(1);
@@ -247,7 +248,7 @@ static bool execute() {
   return true;
 }
 
-}; // namespace ArgusSamples
+};
 
 int main(int argc, char *argv[]) {
   ros::init(argc, argv, "argus_stereo_sync_node");
