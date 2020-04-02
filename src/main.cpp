@@ -5,6 +5,7 @@
 #include <ros/ros.h>
 #include <ros/console.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 #include <cv_bridge/cv_bridge.h>
 
 #include <opencv2/highgui/highgui.hpp>
@@ -121,15 +122,38 @@ bool StereoConsumerThread::threadExecute() {
     }
 
     int left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
-    void *pdata = NULL;
-    NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &pdata);
-    NvBufferMemSyncForCpu(left_fd, 0, &pdata);
-    cv::Mat imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, pdata);
-    cv::Mat display_img;
-    cvtColor(imgbuf, display_img, CV_RGBA2BGR);
-    NvBufferMemUnMap(left_fd, 0, &pdata);
-    cv::imshow("img", display_img);
-    cv::waitKey(1);
+    int right_fd = right_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
+    void *left_pdata = NULL;
+    void *right_pdata = NULL;
+    NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &left_pdata);
+    NvBufferMemMap(right_fd, 0, NvBufferMem_Read, &right_pdata);
+    NvBufferMemSyncForCpu(left_fd, 0, &left_pdata);
+    NvBufferMemSyncForCpu(right_fd, 0, &right_pdata);
+    cv::Mat left_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, left_pdata);
+    cv::Mat right_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, right_pdata);
+    cv::Mat left_display_img;
+    cv::Mat right_display_img;
+    cvtColor(left_imgbuf, left_display_img, CV_RGBA2BGR);
+    cvtColor(right_imgbuf, right_display_img, CV_RGBA2BGR);
+    NvBufferMemUnMap(left_fd, 0, &left_pdata);
+    NvBufferMemUnMap(right_fd, 0, &right_pdata);
+    //cv::imshow("img_left", left_display_img);
+    //cv::imshow("img_right", right_display_img);
+    //cv::waitKey(1);
+    
+    cv_bridge::CvImage left_out_msg;
+    cv_bridge::CvImage right_out_msg;
+    left_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    left_out_msg.image = left_display_img;
+    right_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    right_out_msg.image = right_display_img;
+    left_img_pub.publish(left_out_msg.toImageMsg());
+    right_img_pub.publish(right_out_msg.toImageMsg());
+
+    int ret = NvBufferDestroy(left_fd);
+    if (ret < 0) CONSUMER_PRINT("Failed to Destroy buff");
+    ret = NvBufferDestroy(right_fd);
+    if (ret < 0) CONSUMER_PRINT("Failed to Destroy buff");
   }
 
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
