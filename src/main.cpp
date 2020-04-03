@@ -35,7 +35,7 @@ IEGLOutputStream *iStreamRight;
 UniqueObj<CameraProvider> cameraProvider;
 
 static const Size2D<uint32_t> STREAM_SIZE(1280, 720);
-static const uint32_t FRAMERATE = 30;
+static const uint32_t FRAMERATE = 6;
 
 #define PRODUCER_PRINT(...) printf("PRODUCER: " __VA_ARGS__)
 #define CONSUMER_PRINT(...) printf("CONSUMER: " __VA_ARGS__)
@@ -81,6 +81,9 @@ bool StereoConsumerThread::threadExecute() {
   CONSUMER_PRINT("Streams connected, processing frames.\n");
 
   int frameCount = 0;
+  //IArgusCaptureMetadata* left_iArgusMetadata = interface_cast<IArgusCaptureMetadata>(m_leftStream);
+  //IArgusCaptureMetadata* right_iArgusMetadata = interface_cast<IArgusCaptureMetadata>(m_rightStream);
+
   while (true) {
     EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
     if (!eglQueryStreamKHR(leftIStream->getEGLDisplay(), leftIStream->getEGLStream(), 
@@ -99,61 +102,82 @@ bool StereoConsumerThread::threadExecute() {
 
     UniqueObj<Frame> left_frame(leftIFrameConsumer->acquireFrame());
     UniqueObj<Frame> right_frame(rightIFrameConsumer->acquireFrame());
-    if (!left_frame || !right_frame) {
-      break;
-    }
 
     IFrame *left_iframe = interface_cast<IFrame>(left_frame);
     IFrame *right_iframe = interface_cast<IFrame>(right_frame);
-    if (!left_iframe || !right_iframe) {
-      break;
-    }
+
+    //UniqueObj<MetadataContainer> left_metadataContainer(MetadataContainer::create(leftIStream->getEGLDisplay(), leftIStream->getEGLStream()));
+    //IArgusCaptureMetadata *left_iArgusMetadata = interface_cast<IArgusCaptureMetadata>(left_metadataContainer);
+    //CaptureMetadata* left_metadata = left_iArgusMetadata->getMetadata();
+    //const ICaptureMetadata* left_iCaptureMetadata = interface_cast<const ICaptureMetadata>(left_metadata);
+
+    //UniqueObj<MetadataContainer> right_metadataContainer(MetadataContainer::create(rightIStream->getEGLDisplay(), rightIStream->getEGLStream()));
+    //IArgusCaptureMetadata *right_iArgusMetadata = interface_cast<IArgusCaptureMetadata>(right_metadataContainer);
+    //CaptureMetadata* right_metadata = right_iArgusMetadata->getMetadata();
+    //ICaptureMetadata* right_iCaptureMetadata = interface_cast<ICaptureMetadata>(right_metadata);
+
+    //uint64_t l_t = left_iCaptureMetadata->getSensorTimestamp();
+    //uint64_t r_t = right_iCaptureMetadata->getSensorTimestamp();
+    ROS_INFO("%ld", left_iframe->getTime() - right_iframe->getTime());
 
     Image *left_image = left_iframe->getImage();
     Image *right_image = right_iframe->getImage();
-    if (!left_image || !right_image) {
-      break;
+	
+    IImageJPEG *iJPEG_left = interface_cast<IImageJPEG>(left_image);
+    IImageJPEG *iJPEG_right = interface_cast<IImageJPEG>(right_image);
+
+    std::ostringstream fileName1;
+    std::ostringstream fileName2;
+    fileName1 << "left_" << std::setfill('0') << std::setw(4) << frameCount << ".jpg";
+    fileName2 << "right_" << std::setfill('0') << std::setw(4) << frameCount << ".jpg";
+    if (iJPEG_left->writeJPEG(fileName1.str().c_str()) == STATUS_OK) {
+      //CONSUMER_PRINT("Captured a still image to '%s'\n", fileName1.str().c_str());
+    } else {
+      ORIGINATE_ERROR("Failed to write JPEG to '%s'\n", fileName1.str().c_str());
+    }
+
+    if (iJPEG_right->writeJPEG(fileName2.str().c_str()) == STATUS_OK) {
+      //CONSUMER_PRINT("Captured a still image to '%s'\n", fileName2.str().c_str());
+    } else {
+      ORIGINATE_ERROR("Failed to write JPEG to '%s'\n", fileName2.str().c_str());
     }
 
     NV::IImageNativeBuffer *left_inative_buffer = interface_cast<NV::IImageNativeBuffer>(left_image);
     NV::IImageNativeBuffer *right_inative_buffer = interface_cast<NV::IImageNativeBuffer>(right_image);
-    if (!left_inative_buffer || !right_inative_buffer) {
-      break;
-    }
 
     int left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
     int right_fd = right_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
+
     void *left_pdata = NULL;
     void *right_pdata = NULL;
     NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &left_pdata);
     NvBufferMemMap(right_fd, 0, NvBufferMem_Read, &right_pdata);
     NvBufferMemSyncForCpu(left_fd, 0, &left_pdata);
     NvBufferMemSyncForCpu(right_fd, 0, &right_pdata);
+
     cv::Mat left_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, left_pdata);
     cv::Mat right_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, right_pdata);
     cv::Mat left_display_img;
     cv::Mat right_display_img;
     cvtColor(left_imgbuf, left_display_img, CV_RGBA2BGR);
     cvtColor(right_imgbuf, right_display_img, CV_RGBA2BGR);
+
     NvBufferMemUnMap(left_fd, 0, &left_pdata);
     NvBufferMemUnMap(right_fd, 0, &right_pdata);
-    //cv::imshow("img_left", left_display_img);
-    //cv::imshow("img_right", right_display_img);
-    //cv::waitKey(1);
     
     cv_bridge::CvImage left_out_msg;
     cv_bridge::CvImage right_out_msg;
+
     left_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
     left_out_msg.image = left_display_img;
     right_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
     right_out_msg.image = right_display_img;
+
     left_img_pub.publish(left_out_msg.toImageMsg());
     right_img_pub.publish(right_out_msg.toImageMsg());
 
     int ret = NvBufferDestroy(left_fd);
-    if (ret < 0) CONSUMER_PRINT("Failed to Destroy buff");
     ret = NvBufferDestroy(right_fd);
-    if (ret < 0) CONSUMER_PRINT("Failed to Destroy buff");
   }
 
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
@@ -268,7 +292,9 @@ static bool execute() {
     ORIGINATE_ERROR("Failed to start repeat capture request for preview");
   }
   
-  ros::spin();
+  //ros::spin();
+  // Temporary
+  sleep(300);
   return true;
 }
 
