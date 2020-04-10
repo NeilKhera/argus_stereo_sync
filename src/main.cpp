@@ -34,8 +34,8 @@ IEGLOutputStream *iStreamLeft;
 IEGLOutputStream *iStreamRight;
 UniqueObj<CameraProvider> cameraProvider;
 
-static const Size2D<uint32_t> STREAM_SIZE(1280, 720);
-static const uint32_t FRAMERATE = 6;
+static const Size2D<uint32_t> STREAM_SIZE(1920, 1080);
+static const uint32_t FRAMERATE = 60;
 
 #define PRODUCER_PRINT(...) printf("PRODUCER: " __VA_ARGS__)
 #define CONSUMER_PRINT(...) printf("CONSUMER: " __VA_ARGS__)
@@ -294,7 +294,8 @@ static bool execute() {
   
   //ros::spin();
   // Temporary
-  sleep(300);
+  sleep(10);
+  argusSigintHandler(0);
   return true;
 }
 
