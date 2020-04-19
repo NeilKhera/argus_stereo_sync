@@ -1,26 +1,23 @@
-#include <iostream>
-#include <iomanip>
+#include "tic_toc.h"
 #include <csignal>
 
 #include <ros/ros.h>
 #include <ros/console.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/fill_image.h>
 #include <sensor_msgs/image_encodings.h>
-#include <cv_bridge/cv_bridge.h>
-
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaimgproc.hpp>
 
 #include "Argus/Argus.h"
 #include "EGLStream/EGLStream.h"
-#include "EGLStream/NV/ImageNativeBuffer.h"
 
 #include "ArgusHelpers.h"
 #include "CommonOptions.h"
 #include "EGLGlobal.h"
 #include "Error.h"
 #include "Thread.h"
+
+//#include <cuda_runtime.h>
+//#include "yuv2rgb.cuh"
 
 using namespace Argus;
 using namespace EGLStream;
@@ -63,20 +60,8 @@ class StereoConsumerThread : public Thread {
     IFrame *right_iframe;
     Image *left_image;
     Image *right_image;
-    
-    NV::IImageNativeBuffer *left_inative_buffer;
-    NV::IImageNativeBuffer *right_inative_buffer;
-    int left_fd;
-    int right_fd;
-    void *left_pdata;
-    void *right_pdata;
 
-    cv_bridge::CvImage left_out_msg;
-    cv_bridge::CvImage right_out_msg;
-    cv::Mat left_imgbuf;
-    cv::Mat right_imgbuf;
-    //cv::cuda::GpuMat left_display_img;
-    //cv::cuda::GpuMat right_display_img;
+    unsigned char* RGB = new unsigned char[3 * STREAM_SIZE.width() * STREAM_SIZE.height() * sizeof(unsigned char)];
 };
 
 bool StereoConsumerThread::threadInitialize() {
@@ -85,8 +70,6 @@ bool StereoConsumerThread::threadInitialize() {
   if (!m_leftConsumer || !m_rightConsumer) {
     ORIGINATE_ERROR("Failed to create FrameConsumers");
   }
-  left_pdata = NULL;
-  right_pdata = NULL;
   return true;
 }
 
@@ -104,6 +87,7 @@ bool StereoConsumerThread::threadExecute() {
   CONSUMER_PRINT("Streams connected, processing frames.\n");
 
   while (true) {
+    tic();
     EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
     if (!eglQueryStreamKHR(leftIStream->getEGLDisplay(), leftIStream->getEGLStream(), 
 	EGL_STREAM_STATE_KHR, &streamState) ||
@@ -118,7 +102,9 @@ bool StereoConsumerThread::threadExecute() {
       CONSUMER_PRINT("EGL_STREAM_STATE_DISCONNECTED_KHR received\n");
       break;
     }
+    ROS_ERROR("1: %f", toc());
 
+    tic();
     UniqueObj<Frame> left_frame(leftIFrameConsumer->acquireFrame());
     UniqueObj<Frame> right_frame(rightIFrameConsumer->acquireFrame());
 
@@ -127,41 +113,24 @@ bool StereoConsumerThread::threadExecute() {
 
     left_image = left_iframe->getImage();
     right_image = right_iframe->getImage();
-	
-    left_inative_buffer = interface_cast<NV::IImageNativeBuffer>(left_image);
-    right_inative_buffer = interface_cast<NV::IImageNativeBuffer>(right_image);
 
-    left_fd = left_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
-    right_fd = right_inative_buffer->createNvBuffer(STREAM_SIZE, NvBufferColorFormat_ABGR32, NvBufferLayout_Pitch);
+    IImage *iImage = interface_cast<IImage>(left_image);
+    IImage2D *iImage2D = interface_cast<IImage2D>(left_image);
+    ROS_ERROR("2: %f", toc());
 
-    NvBufferMemMap(left_fd, 0, NvBufferMem_Read, &left_pdata);
-    NvBufferMemMap(right_fd, 0, NvBufferMem_Read, &right_pdata);
-    NvBufferMemSyncForCpu(left_fd, 0, &left_pdata);
-    NvBufferMemSyncForCpu(right_fd, 0, &right_pdata);
-
-    left_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, left_pdata);
-    right_imgbuf = cv::Mat(STREAM_SIZE.height(), STREAM_SIZE.width(), CV_8UC4, right_pdata);
-    cv::Mat left_display_img;
-    cv::Mat right_display_img;
-    cvtColor(left_imgbuf, left_display_img, CV_RGBA2BGR);
-    cvtColor(right_imgbuf, right_display_img, CV_RGBA2BGR);
-
-    NvBufferMemUnMap(left_fd, 0, &left_pdata);
-    NvBufferMemUnMap(right_fd, 0, &right_pdata);
+    tic();
+    Size2D<uint32_t> size = iImage2D->getSize(0);
+    uint32_t width = size.width();
+    uint32_t height = size.height();
     
-    //cv_bridge::CvImage left_out_msg;
-    //cv_bridge::CvImage right_out_msg;
+    //gpuConvertYUV420toRGB((uint8_t*) iImage->mapBuffer((uint32_t) 0), (uint8_t*) iImage->mapBuffer((uint32_t) 1), RGB, width, height);
+    //ROS_ERROR("3: %f", toc());
 
-    left_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    left_out_msg.image = left_display_img;
-    right_out_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    right_out_msg.image = right_display_img;
-
-    left_img_pub.publish(left_out_msg.toImageMsg());
-    right_img_pub.publish(right_out_msg.toImageMsg());
-
-    NvBufferDestroy(left_fd);
-    NvBufferDestroy(right_fd);
+    tic();
+    sensor_msgs::Image left_img_msg;
+    sensor_msgs::fillImage(left_img_msg, sensor_msgs::image_encodings::RGB8, height, width, 3 * width, RGB);
+    left_img_pub.publish(left_img_msg);
+    ROS_ERROR("4: %f", toc());
   }
 
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
@@ -170,6 +139,7 @@ bool StereoConsumerThread::threadExecute() {
 }
 
 bool StereoConsumerThread::threadShutdown() {
+  delete[] RGB;
   CONSUMER_PRINT("Done.\n");
   return true;
 }

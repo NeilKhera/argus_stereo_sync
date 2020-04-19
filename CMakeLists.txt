@@ -5,6 +5,7 @@ set(ARGUS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs/jetson_multimedia_api/argus)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake "${CMAKE_MODULE_PATH}")
 
 find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs cv_bridge)
+find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(NVMMAPI REQUIRED)
 find_package(Argus REQUIRED)
@@ -12,6 +13,8 @@ find_package(EGL REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -gencode arch=compute_53,code=sm_53 -gencode arch=compute_62,code=sm_62 -gencode arch=compute_72,code=sm_72 -gencode arch=compute_72,code=compute_72)
 
 add_library(utils_lib
     ${ARGUS_DIR}/samples/utils/ArgusHelpers.cpp
@@ -41,20 +44,24 @@ target_include_directories(utils_lib
 )
 
 catkin_package()
-add_executable(${PROJECT_NAME} src/main.cpp)
+cuda_add_library(kernel_obj src/yuv2rgb.cu)
+cuda_add_executable(${PROJECT_NAME} src/main.cpp src/tic_toc.cpp)
 
 target_link_libraries(${PROJECT_NAME}
     ${catkin_LIBRARIES}
+    ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${NVMMAPI_LIBRARIES}
     ${ARGUS_LIBRARIES}
     ${EGL_LIBRARIES}
     utils_lib
+    kernel_obj
 )
 
 target_include_directories(${PROJECT_NAME}
     PRIVATE
     ${catkin_INCLUDE_DIRS}
+    ${CUDA_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     ${NVMMAPI_INCLUDE_DIRS}
     ${ARGUS_INCLUDE_DIRS}
