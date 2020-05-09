@@ -23,10 +23,10 @@ ros::Publisher right_image_pub;
 namespace ArgusSamples {
 
 static const uint32_t FRAMERATE = 60;
-static const Size2D<uint32_t> STREAM_SIZE(1920, 1080);
+static const Size2D<uint32_t> STREAM_SIZE(960, 540);
 
 EGLDisplayHolder g_display;
-uint8_t* oBuffer = new uint8_t[STREAM_SIZE.width() * STREAM_SIZE.height()];
+uint8_t* oBuffer = new uint8_t[3 * STREAM_SIZE.width() * STREAM_SIZE.height()];
 
 #define PRODUCER_PRINT(...) printf("PRODUCER: " __VA_ARGS__)
 #define CONSUMER_PRINT(...) printf("CONSUMER: " __VA_ARGS__)
@@ -175,18 +175,26 @@ bool CudaFrameAcquire::publish(bool leftFrame) {
   memset(&cudaResourceDesc, 0, sizeof(cudaResourceDesc));
   cudaResourceDesc.resType = CU_RESOURCE_TYPE_ARRAY;
   cudaResourceDesc.res.array.hArray = m_frame.frame.pArray[0];
-  CUsurfObject cudaSurfObj = 0;
-  CUresult cuResult = cuSurfObjectCreate(&cudaSurfObj, &cudaResourceDesc);
+  CUsurfObject cudaSurfObj1 = 0;
+  CUresult cuResult = cuSurfObjectCreate(&cudaSurfObj1, &cudaResourceDesc);
   if (cuResult != CUDA_SUCCESS) {
-    ORIGINATE_ERROR("Unable to create surface object (%s)", getCudaErrorString(cuResult));
+    ORIGINATE_ERROR("Unable to create surface object 1 (%s)", getCudaErrorString(cuResult));
   }
   
-  float delta = convert(cudaSurfObj, m_frame.width, m_frame.height, oBuffer);
-  cuSurfObjectDestroy(cudaSurfObj);
+  cudaResourceDesc.res.array.hArray = m_frame.frame.pArray[1];
+  CUsurfObject cudaSurfObj2 = 0;
+  cuResult = cuSurfObjectCreate(&cudaSurfObj2, &cudaResourceDesc);
+  if (cuResult != CUDA_SUCCESS) {
+    ORIGINATE_ERROR("Unable to create surface object 2 (%s)", getCudaErrorString(cuResult));
+  }
+
+  float delta = convert(cudaSurfObj1, cudaSurfObj2, m_frame.width, m_frame.height, oBuffer);
+  cuSurfObjectDestroy(cudaSurfObj1);
+  cuSurfObjectDestroy(cudaSurfObj2);
 
   sensor_msgs::Image output;
   output.header.stamp = ros::Time::now();
-  sensor_msgs::fillImage(output, sensor_msgs::image_encodings::MONO8, m_frame.height, m_frame.width, m_frame.width, (void*) oBuffer);
+  sensor_msgs::fillImage(output, sensor_msgs::image_encodings::BGR8, m_frame.height, m_frame.width, 3 * m_frame.width, (void*) oBuffer);
 
   if (leftFrame) {
     CONSUMER_PRINT("Left frame output: %f", delta);
