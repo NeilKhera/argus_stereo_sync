@@ -27,7 +27,6 @@ __global__ void convert_kernel(CUsurfObject surface1, CUsurfObject surface2,
       out[3 * (row * width + col) + 0] = Rval;
       out[3 * (row * width + col) + 1] = Gval;
       out[3 * (row * width + col) + 2] = Bval;
-      //out[row * width + col] = Ydata.x;
     }
   }
 }

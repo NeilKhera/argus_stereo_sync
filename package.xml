@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>argus_stereo_sync</name>
-  <version>0.1.0</version>
+  <version>1.0.0</version>
   
   <description>ROS-enabled stereo camera software synchronization through libargus on Nvidia Jetson-powered systems</description>
   <maintainer email="nkhera@andrew.cmu.edu">Neil Khera</maintainer>
@@ -10,11 +10,8 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>cv_bridge</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
-  <build_export_depend>cv_bridge</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>cv_bridge</exec_depend>
 </package>
