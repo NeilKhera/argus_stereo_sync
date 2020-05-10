@@ -5,7 +5,7 @@
   
   <description>ROS-enabled stereo camera software synchronization through libargus on Nvidia Jetson-powered systems</description>
   <maintainer email="nkhera@andrew.cmu.edu">Neil Khera</maintainer>
-  <license>BSD</license>
+  <license>MIT</license>
   
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
