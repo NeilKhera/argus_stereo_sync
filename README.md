@@ -9,7 +9,7 @@ Effective stereo matching requires a low (In an ideal world, zero) time latency 
 
 argus_stereo_sync is a ROS package that utilises Nvidia's Argus API ([Libargus](https://docs.nvidia.com/jetson/l4t-multimedia/group__LibargusAPI.html)), a part of the Jetson Multimedia API package, for Nvidia's COTS Jetson computing systems to register multiple cameras on a single session, allowing for greater synchrony between frame captures than conventional software-based methods.
 
-### Development configuration
+### Development Configuration
 The above software has been developed on the following configuration:
 - Nvidia Jetson TX2 Module L4T v32.3.1 (Leopard Imaging drivers)
 - ROS Melodic Morenia
@@ -48,10 +48,13 @@ This will build the package. To run the stereo sync node, type:
 $ rosrun argus_stereo_sync argus_stereo_sync
 ```
 
-### ROS output
-The _argus_stereo_sync_ node outputs images from the left and right cameras on the ```/camera/left/image``` and the ```/camera/right/image``` rostopics respectively. Images are in the BGR8 encoding format.
+### ROS Output
+The _argus_stereo_sync_ node outputs frames from the left and right cameras as sensor_msgs::Image messages on the ```/camera/left/image``` and the ```/camera/right/image``` rostopics respectively. Images are in the BGR8 encoding format.
 
-### Known issues
+### Technical Documentation
+Kindly refer to the _Technical Documentation_ page on the [wiki](https://github.com/Nekhera/argus_stereo_sync/wiki/Technical-Documentation).
+
+### Known Issues
 - In our tests a resolution of 960x540 delivered a clean 60FPS however anything above that led to significant drops in framerate. The bottleneck is likely in copying the image buffer from the CUDA device to host memory.
 
 _Please report any bugs and issues encountered to the repo issue tracker. Pull requests are welcome!_
