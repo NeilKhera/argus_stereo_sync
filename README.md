@@ -1,13 +1,13 @@
 # Argus Stereo Sync
-> Disclaimer: the following piece of software is under development and has only undergone a couple "tabletop" tests so far. It is not guarenteed to work as intended, or to expectations.
+> Disclaimer: The following piece of software is under development and has only undergone a couple of "tabletop" tests so far. It is not guaranteed to work as intended, or to expectations.
 
-Synchronization describes the process of triggering two or more cameras in such a way that allows them to produce image frames at the same instance of time. Synchronization of cameras is essential to achieving good quality real-time stereo matching for depth estimation, especially on fast moving systems. 
+Synchronization describes the process of triggering two or more cameras in such a way that allows them to produce image frames at the same instance of time. Synchronization of cameras is essential to achieving good quality real-time stereo matching for depth estimation, especially on fast-moving systems. 
 
-Typical methods to accomplish synchronization involve using serial connections between cameras where the 'master' camera triggers its 'slaves' to grab an image frame along with it (hardware synchronization), or by starting the capture session at identical framerates, as close as possible, and discarding image pairs that lie beyond a certain threshold (software synchronization). In the absence of hardware trigger GPIO (such as on the LI-IMX274-CS cameras we utilize), software syncronization remains the only option - however, dropping image pairs effectively lowers the output framerate of the cameras.
+Typical methods to accomplish synchronization involve using serial connections between cameras where the 'master' camera triggers its 'slaves' to grab an image frame along with it (hardware synchronization), or by starting the capture session at identical framerates, as close as possible, and discarding image pairs that lie beyond a certain threshold (software synchronization). In the absence of hardware trigger GPIO (such as on the LI-IMX274-CS cameras we utilize), software synchronization remains the only option - however, dropping image pairs effectively lowers the output framerate of the cameras.
 
 Effective stereo matching requires a low (In an ideal world, zero) time latency between frames of a stereo image pair. As such software synchronization as described above is ineffective in most real-time systems.
 
-argus_stereo_sync is a ROS package that utilises Nvidia's Argus API ([Libargus](https://docs.nvidia.com/jetson/l4t-multimedia/group__LibargusAPI.html)), a part of the Jetson Multimedia API package, for Nvidia's COTS Jetson computing systems to register multiple cameras on a single session, allowing for greater synchrony between frame captures than conventional software-based methods.
+argus_stereo_sync is a ROS package that utilizes Nvidia's Argus API ([Libargus](https://docs.nvidia.com/jetson/l4t-multimedia/group__LibargusAPI.html)), a part of the Jetson Multimedia API package, for Nvidia's COTS Jetson computing systems to register multiple cameras on a single session, allowing for greater synchrony between frame captures than conventional software-based methods.
 
 ### Development Configuration
 The above software has been developed on the following configuration:
@@ -35,9 +35,9 @@ $ git clone https://github.com/Nekhera/argus_stereo_sync.git
 $ cd argus_stereo_sync/libs
 ```
 - Untar the contents of the Jetson Multimedia API (A folder called jetson_multimedia_api, or formerly tegra_multimedia_api) here. Make to relabel the folder to jetson_multimedia_api if needed.
-> Currently the installation of the Jetson Multimedia API to the libs folder must be done manually. Automated installion is planned.
+> Currently, the installation of the Jetson Multimedia API to the libs folder must be done manually. Automated installation is planned.
 
-> We have utilised the API provided by Leopard Imaging with their adapter drivers (Please contact Leopard Imaging at sales@leopardimaging.com to get the most up-to-date drivers). We are unaware if any difference exists between this version and the downloads provided on the [Jetson Download Center](https://developer.nvidia.com/embedded/downloads).
+> We have utilized the API provided by Leopard Imaging with their adapter drivers (Please contact Leopard Imaging at sales@leopardimaging.com to get the most up-to-date drivers). We are unaware of differences (if any) existing between this version and the downloads provided on the [Jetson Download Center](https://developer.nvidia.com/embedded/downloads).
 
 ```sh
 $ cd /path/to/catkin_ws
@@ -55,12 +55,12 @@ The _argus_stereo_sync_ node outputs frames from the left and right cameras as s
 Kindly refer to the _Technical Documentation_ page on the [wiki](https://github.com/Nekhera/argus_stereo_sync/wiki/Technical-Documentation).
 
 ### Known Issues
-- In our tests a resolution of 960x540 delivered a clean 60FPS however anything above that led to significant drops in framerate. The bottleneck is likely in copying the image buffer from the CUDA device to host memory.
+- In our tests, a resolution of 960x540 delivered a clean 60FPS however anything above that led to significant drops in framerate. The bottleneck is likely in copying the image buffer from the CUDA device to host memory.
 
 _Please report any bugs and issues encountered to the repo issue tracker. Pull requests are welcome!_
 ### Todos
 - Published messages should use sensor timestamp, not _ros::now::time()_.
-- Add ability to dynamically set camera exposure range, allowing with other parameters such as framerate and resolution (preferably without restarting node).
+- Add the ability to dynamically set camera exposure range, allowing with other parameters such as framerate and resolution (preferably without restarting node).
 - Automate API installation.
 - Optimize CUDA kernel for improved performance at higher resolutions.
 ### License
