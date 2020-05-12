@@ -62,7 +62,7 @@ _Please report any bugs and issues encountered to the repo issue tracker. Pull r
 - Published messages should use sensor timestamp, not _ros::now::time()_.
 - Add the ability to dynamically set camera exposure range, allowing with other parameters such as framerate and resolution (preferably without restarting node).
 - Automate API installation.
-- Optimize CUDA kernel for improved performance at higher resolutions.
+- Optimize CUDA kernel for improved performance at higher resolutions. (YUV 422 supported by ROS requires 16-bit per pixel as opposed to the 24-bit per pixel of BGR8 - Thereby reducing buffer size by 33%) 
 ### License
 MIT License. Copyright (c) 2020 Neil Khera
 
