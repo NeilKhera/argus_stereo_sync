@@ -1,6 +1,17 @@
 # Argus Stereo Sync
 > Disclaimer: The following piece of software is under development and has only undergone a couple of "tabletop" tests so far. It is not guaranteed to work as intended, or to expectations.
 
+### Table of Contents
+- [Introduction] (#introduction)
+- [Development Configuration](#development-configuration)
+- [Installation](#installation)
+- [ROS Output](#ros-output)
+- [Technical Documentation](#technical-documentation)
+- [Known Issues](#known-issues)
+- [Todos](#todos)
+- [License](#license)
+
+### Introduction
 Synchronization describes the process of triggering two or more cameras in such a way that allows them to produce image frames at the same instance of time. Synchronization of cameras is essential to achieving good quality real-time stereo matching for depth estimation, especially on fast-moving systems. 
 
 Typical methods to accomplish synchronization involve using serial connections between cameras where the 'master' camera triggers its 'slaves' to grab an image frame along with it (hardware synchronization), or by starting the capture session at identical framerates, as close as possible, and discarding image pairs that lie beyond a certain threshold (software synchronization). In the absence of hardware trigger GPIO (such as on the LI-IMX274-CS cameras we utilize), software synchronization remains the only option - however, dropping image pairs effectively lowers the output framerate of the cameras.
