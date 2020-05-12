@@ -2,7 +2,7 @@
 > Disclaimer: The following piece of software is under development and has only undergone a couple of "tabletop" tests so far. It is not guaranteed to work as intended, or to expectations.
 
 ### Table of Contents
-- [Introduction] (#introduction)
+- [Introduction](#introduction)
 - [Development Configuration](#development-configuration)
 - [Installation](#installation)
 - [ROS Output](#ros-output)
