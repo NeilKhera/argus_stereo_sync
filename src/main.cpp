@@ -18,8 +18,11 @@
 
 using namespace Argus;
 
-static const uint32_t FRAMERATE = 60;
+static const uint32_t FRAMERATE = 30;
 static const Size2D<uint32_t> STREAM_SIZE(960, 540);
+static const Range<float> GAIN_RANGE(1, 44);
+static const Range<float> ISP_DIGITAL_GAIN_RANGE(1, 1);
+static const Range<uint64_t> EXPOSURE_TIME_RANGE(44000, 1000000);
 
 ros::Publisher left_image_pub;
 ros::Publisher right_image_pub;
@@ -259,6 +262,12 @@ static bool execute() {
     ORIGINATE_ERROR("Failed to get source settings request interface");
   }
   iSourceSettings->setFrameDurationRange(Range<uint64_t>(1e9 / FRAMERATE));
+  iSourceSettings->setExposureTimeRange(EXPOSURE_TIME_RANGE);
+  iSourceSettings->setGainRange(GAIN_RANGE);
+  
+  IAutoControlSettings *iAutoControlSettings = 
+	  interface_cast<IAutoControlSettings>(iRequest->getAutoControlSettings());
+  iAutoControlSettings->setIspDigitalGainRange(ISP_DIGITAL_GAIN_RANGE);
 
   PRODUCER_PRINT("Launching disparity checking consumer\n");
   StereoConsumer disparityConsumer(iStreamLeft, iStreamRight);
