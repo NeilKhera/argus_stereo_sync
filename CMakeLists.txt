@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.1)
 project(argus_stereo_sync)
 
-set(ARGUS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs/jetson_multimedia_api/argus)
+set(ARGUS_DIR /usr/src/jetson_multimedia_api/argus)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake "${CMAKE_MODULE_PATH}")
 
 find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs)

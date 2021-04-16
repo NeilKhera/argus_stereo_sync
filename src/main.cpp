@@ -1,10 +1,12 @@
 #include <csignal>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/fill_image.h>
 
 #include <Argus/Argus.h>
+#include <EGLStream/EGLStream.h>
 #include <cuda.h>
 #include <cudaEGL.h>
 
@@ -25,7 +27,9 @@ static const Range<float> ISP_DIGITAL_GAIN_RANGE(1, 1);
 static const Range<uint64_t> EXPOSURE_TIME_RANGE(44000, 1000000);
 
 ros::Publisher left_image_pub;
+ros::Publisher left_camera_info_pub;
 ros::Publisher right_image_pub;
+ros::Publisher right_camera_info_pub;
 uint8_t* oBuffer = new uint8_t[3 * STREAM_SIZE.width() * STREAM_SIZE.height()];
 
 namespace ArgusSamples {
@@ -204,13 +208,14 @@ static bool execute() {
 
   std::vector<CameraDevice*> cameraDevices;
   iCameraProvider->getCameraDevices(&cameraDevices);
+  printf("CAMERA DEVICES COUNT: %d\n", cameraDevices.size());
   if (cameraDevices.size() < 2) {
     ORIGINATE_ERROR("Must have at least 2 sensors available");
   }
 
   std::vector <CameraDevice*> lrCameras;
   lrCameras.push_back(cameraDevices[0]);
-  lrCameras.push_back(cameraDevices[1]);
+  lrCameras.push_back(cameraDevices[2]);
 
   UniqueObj<CaptureSession> captureSession(iCameraProvider->createCaptureSession(lrCameras));
   ICaptureSession *iCaptureSession = interface_cast<ICaptureSession>(captureSession);
@@ -231,6 +236,7 @@ static bool execute() {
   iEGLStreamSettings->setResolution(STREAM_SIZE);
   iEGLStreamSettings->setEGLDisplay(g_display.get());
   iEGLStreamSettings->setMode(EGL_STREAM_MODE_MAILBOX);
+  iEGLStreamSettings->setMetadataEnable(true);
 
   PRODUCER_PRINT("Creating left stream.\n");
   iStreamSettings->setCameraDevice(lrCameras[0]);
@@ -304,8 +310,10 @@ int main(int argc, char *argv[]) {
   ros::init(argc, argv, "argus_stereo_node");
   ros::NodeHandle nh;
 
-  left_image_pub = nh.advertise<sensor_msgs::Image>("/camera/left/image", 1);
+  left_image_pub = nh.advertise<sensor_msgs::Image>("/camera/left/image_raw", 1);
+  left_camera_info_pub = nh.advertise<sensor_msgs::CameraInfo>("/camera/left/camera_info", 1);
   right_image_pub = nh.advertise<sensor_msgs::Image>("/camera/right/image", 1);
+  right_camera_info_pub = nh.advertise<sensor_msgs::CameraInfo>("/camera/right/camera_info", 1);
   
   if (!ArgusSamples::execute()) {
     delete[] oBuffer;

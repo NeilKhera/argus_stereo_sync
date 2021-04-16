@@ -34,7 +34,7 @@
 find_package(PkgConfig)
 
 find_path(ARGUS_INCLUDE_DIR Argus/Argus.h
-          HINTS ${CMAKE_CURRENT_SOURCE_DIR}/libs/jetson_multimedia_api/include)
+          HINTS /usr/src/jetson_multimedia_api/include)
 
 find_library(ARGUS_LIBRARY NAMES nvargus
              HINTS /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/tegra)
