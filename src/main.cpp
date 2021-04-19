@@ -7,11 +7,11 @@
 
 #include <Argus/Argus.h>
 #include <EGLStream/EGLStream.h>
-#include <cuda.h>
-#include <cudaEGL.h>
+//#include <cuda.h>
+//#include <cudaEGL.h>
 
 #include "ArgusHelpers.h"
-#include "CUDAHelper.h"
+//#include "CUDAHelper.h"
 #include "EGLGlobal.h"
 #include "Error.h"
 #include "Thread.h"
@@ -19,8 +19,9 @@
 #include "convert.h"
 
 using namespace Argus;
+using namespace EGLStream;
 
-static const uint32_t FRAMERATE = 30;
+static const uint32_t FRAMERATE = 1;
 static const Size2D<uint32_t> STREAM_SIZE(960, 540);
 static const Range<float> GAIN_RANGE(1, 44);
 static const Range<float> ISP_DIGITAL_GAIN_RANGE(1, 1);
@@ -30,7 +31,7 @@ ros::Publisher left_image_pub;
 ros::Publisher left_camera_info_pub;
 ros::Publisher right_image_pub;
 ros::Publisher right_camera_info_pub;
-uint8_t* oBuffer = new uint8_t[3 * STREAM_SIZE.width() * STREAM_SIZE.height()];
+//uint8_t* oBuffer = new uint8_t[3 * STREAM_SIZE.width() * STREAM_SIZE.height()];
 
 namespace ArgusSamples {
 
@@ -41,25 +42,29 @@ EGLDisplayHolder g_display;
 
 class StereoConsumer : public Thread {
   public:
-    explicit StereoConsumer(IEGLOutputStream *leftStream, IEGLOutputStream *rightStream)
-		            : m_leftStream(leftStream), m_rightStream(rightStream)
-                            , m_cuStreamLeft(NULL), m_cuStreamRight(NULL) 
-	                    , m_cudaContext(0) {}
-    ~StereoConsumer() {}
+    explicit StereoConsumer(OutputStream *leftStream, OutputStream *rightStream)
+		            : m_leftStream(leftStream), m_rightStream(rightStream) {}
+    ~StereoConsumer() {
+        CONSUMER_PRINT("DESTRUCTOR  ... \n");
+    }
 
   private:
     virtual bool threadInitialize();
     virtual bool threadExecute();
     virtual bool threadShutdown();
 
-    IEGLOutputStream *m_leftStream;
-    IEGLOutputStream *m_rightStream;
-    CUeglStreamConnection m_cuStreamLeft;
-    CUeglStreamConnection m_cuStreamRight;
-    CUcontext m_cudaContext;
+    OutputStream *m_leftStream;
+    OutputStream *m_rightStream;
+    UniqueObj<FrameConsumer> m_leftConsumer;
+    UniqueObj<FrameConsumer> m_rightConsumer;
+    //IEGLOutputStream *m_leftStream;
+    //IEGLOutputStream *m_rightStream;
+    //CUeglStreamConnection m_cuStreamLeft;
+    //CUeglStreamConnection m_cuStreamRight;
+    //CUcontext m_cudaContext;
 };
 
-class CudaFrameAcquire {
+/*class CudaFrameAcquire {
   public:
     CudaFrameAcquire(CUeglStreamConnection& connection);
     ~CudaFrameAcquire();
@@ -71,12 +76,12 @@ class CudaFrameAcquire {
     CUgraphicsResource m_resource;
     CUeglFrame m_frame;
     CUstream m_stream;
-};
+};*/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool StereoConsumer::threadInitialize() {
-  PROPAGATE_ERROR(initCUDA(&m_cudaContext));
+  /*PROPAGATE_ERROR(initCUDA(&m_cudaContext));
 
   CONSUMER_PRINT("Connecting CUDA consumer to left stream\n");
   CUresult cuResult = cuEGLStreamConsumerConnect(&m_cuStreamLeft, m_leftStream->getEGLStream());
@@ -88,20 +93,145 @@ bool StereoConsumer::threadInitialize() {
   cuResult = cuEGLStreamConsumerConnect(&m_cuStreamRight, m_rightStream->getEGLStream());
   if (cuResult != CUDA_SUCCESS) {
     ORIGINATE_ERROR("Unable to connect CUDA to EGLStream (%s)", getCudaErrorString(cuResult));
+  }*/
+
+  CONSUMER_PRINT("Creating FrameConsumer for left stream\n");
+  m_leftConsumer = UniqueObj<FrameConsumer>(FrameConsumer::create(m_leftStream));
+  if (!m_leftConsumer) {
+    ORIGINATE_ERROR("Failed to create FrameConsumer for left stream");
   }
+
+  CONSUMER_PRINT("Creating FrameConsumer for right stream\n");
+  m_rightConsumer = UniqueObj<FrameConsumer>(FrameConsumer::create(m_rightStream));
+  if (!m_rightConsumer) {
+    ORIGINATE_ERROR("Failed to create FrameConsumer for right stream");
+  }
+
   return true;
 }
 
 bool StereoConsumer::threadExecute() {
+  IEGLOutputStream *iLeftStream = interface_cast<IEGLOutputStream>(m_leftStream);
+  IFrameConsumer* iFrameConsumerLeft = interface_cast<IFrameConsumer>(m_leftConsumer);
+
+  IEGLOutputStream *iRightStream = interface_cast<IEGLOutputStream>(m_rightStream);
+  IFrameConsumer* iFrameConsumerRight = interface_cast<IFrameConsumer>(m_rightConsumer);
+
   CONSUMER_PRINT("Waiting for Argus producer to connect to left stream.\n");
-  m_leftStream->waitUntilConnected();
+  if (iLeftStream->waitUntilConnected() != STATUS_OK) {
+    ORIGINATE_ERROR("Argus producer failed to connect to left stream.");
+  }
 
   CONSUMER_PRINT("Waiting for Argus producer to connect to right stream.\n");
-  m_rightStream->waitUntilConnected();
+  if (iRightStream->waitUntilConnected() != STATUS_OK) {
+    ORIGINATE_ERROR("Argus producer failed to connect to right stream.");
+  }
 
   CONSUMER_PRINT("Streams connected, processing frames.\n");
   while (true) {
-    EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
+
+    UniqueObj<Frame> frameleft(iFrameConsumerLeft->acquireFrame());
+    UniqueObj<Frame> frameright(iFrameConsumerRight->acquireFrame());
+    
+    if (!frameleft || !frameright) {
+      break;
+    }
+
+    // Use the IFrame interface to print out the frame number/timestamp, and
+    // to provide access to the Image in the Frame.
+    IFrame *iFrameLeft = interface_cast<IFrame>(frameleft);
+    if (!iFrameLeft) {
+      ORIGINATE_ERROR("Failed to get left IFrame interface.");
+    }
+    
+    CONSUMER_PRINT("Acquired Left Frame: %llu, time %llu\n",
+                    static_cast<unsigned long long>(iFrameLeft->getNumber()),
+                    static_cast<unsigned long long>(iFrameLeft->getTime()));
+
+    
+
+    IArgusCaptureMetadata *iArgusCaptureMetadata_left = interface_cast<IArgusCaptureMetadata>(frameleft);
+    if (!iArgusCaptureMetadata_left)
+    	ORIGINATE_ERROR("Failed to get IArgusCaptureMetadata interface.");
+    
+    CaptureMetadata *metadata_left = iArgusCaptureMetadata_left->getMetadata();
+    ICaptureMetadata *iMetadata_left = interface_cast<ICaptureMetadata>(metadata_left);
+    if (!iMetadata_left)
+    	ORIGINATE_ERROR("Failed to get ICaptureMetadata interface.");
+        
+    CONSUMER_PRINT("\tSensor Timestamp Left: %llu, LUX: %f\n",
+                    static_cast<unsigned long long>(iMetadata_left->getSensorTimestamp()),
+                    iMetadata_left->getSceneLux());
+
+    // Print out image details, and map the buffers to read out some data.
+    Image *image_left = iFrameLeft->getImage();
+    IImage *iImage_left = interface_cast<IImage>(image_left);
+    IImage2D *iImage2D_left = interface_cast<IImage2D>(image_left);
+       
+    for (uint32_t i = 0; i < iImage_left->getBufferCount(); i++)
+    {
+	const uint8_t *d = static_cast<const uint8_t*>(iImage_left->mapBuffer(i));
+        if (!d)
+            ORIGINATE_ERROR("\tFailed to map buffer\n");
+
+        Size2D<uint32_t> size = iImage2D_left->getSize(i);
+        CONSUMER_PRINT("\tIImage(2D): "
+                       "buffer %u (%ux%u, %u stride), "
+                       "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                       i, size.width(), size.height(), iImage2D_left->getStride(i),
+                       d[0], d[1], d[2], d[3], d[4], d[5],
+                       d[6], d[7], d[8], d[9], d[10], d[11]);
+    }
+
+
+
+    IFrame *iFrameRight = interface_cast<IFrame>(frameright);
+    if (!iFrameRight) {
+      ORIGINATE_ERROR("Failed to get right IFrame interface.");
+    }
+            
+    CONSUMER_PRINT("Acquired Right Frame: %llu, time %llu\n",
+                    static_cast<unsigned long long>(iFrameRight->getNumber()),
+                    static_cast<unsigned long long>(iFrameRight->getTime()));
+
+
+
+    IArgusCaptureMetadata *iArgusCaptureMetadata_right = interface_cast<IArgusCaptureMetadata>(frameright);
+    if (!iArgusCaptureMetadata_right)
+    	ORIGINATE_ERROR("Failed to get IArgusCaptureMetadata interface.");
+    
+    CaptureMetadata *metadata_right = iArgusCaptureMetadata_right->getMetadata();
+    ICaptureMetadata *iMetadata_right = interface_cast<ICaptureMetadata>(metadata_right);
+    if (!iMetadata_right)
+        ORIGINATE_ERROR("Failed to get ICaptureMetadata interface.");
+    
+    CONSUMER_PRINT("\tSensor Timestamp Right: %llu, LUX: %f\n",
+                    static_cast<unsigned long long>(iMetadata_right->getSensorTimestamp()),
+                    iMetadata_right->getSceneLux());
+
+    // Print out image details, and map the buffers to read out some data.
+    Image *image_right = iFrameRight->getImage();
+    IImage *iImage_right = interface_cast<IImage>(image_right);
+    IImage2D *iImage2D_right = interface_cast<IImage2D>(image_right);
+
+    for (uint32_t i = 0; i < iImage_right->getBufferCount(); i++)
+    {
+        const uint8_t *d = static_cast<const uint8_t*>(iImage_right->mapBuffer(i));
+        if (!d)
+            ORIGINATE_ERROR("\tFailed to map buffer\n");
+
+        Size2D<uint32_t> size = iImage2D_right->getSize(i);
+        CONSUMER_PRINT("\tIImage(2D): "
+                       "buffer %u (%ux%u, %u stride), "
+                       "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                       i, size.width(), size.height(), iImage2D_right->getStride(i),
+                       d[0], d[1], d[2], d[3], d[4], d[5],
+                       d[6], d[7], d[8], d[9], d[10], d[11]);
+    }
+
+
+
+    /*EGLint streamState = EGL_STREAM_STATE_CONNECTING_KHR;
 
     if (!eglQueryStreamKHR(m_leftStream->getEGLDisplay(), m_leftStream->getEGLStream(),
         EGL_STREAM_STATE_KHR, &streamState) || (streamState == EGL_STREAM_STATE_DISCONNECTED_KHR)) {
@@ -118,7 +248,7 @@ bool StereoConsumer::threadExecute() {
     CudaFrameAcquire left(m_cuStreamLeft);
     CudaFrameAcquire right(m_cuStreamRight);
 
-    PROPAGATE_ERROR(left.publish(true) && right.publish(false));
+    PROPAGATE_ERROR(left.publish(true) && right.publish(false));*/
   }
     
   CONSUMER_PRINT("No more frames. Cleaning up.\n");
@@ -127,7 +257,7 @@ bool StereoConsumer::threadExecute() {
 }
 
 bool StereoConsumer::threadShutdown() {
-  CUresult cuResult = cuEGLStreamConsumerDisconnect(&m_cuStreamLeft);
+  /*CUresult cuResult = cuEGLStreamConsumerDisconnect(&m_cuStreamLeft);
   if (cuResult != CUDA_SUCCESS) {
     ORIGINATE_ERROR("Unable to disconnect CUDA stream (%s)", getCudaErrorString(cuResult));
   }
@@ -137,14 +267,14 @@ bool StereoConsumer::threadShutdown() {
     ORIGINATE_ERROR("Unable to disconnect CUDA stream (%s)", getCudaErrorString(cuResult));
   }
 
-  PROPAGATE_ERROR(cleanupCUDA(&m_cudaContext));
+  PROPAGATE_ERROR(cleanupCUDA(&m_cudaContext));*/
   CONSUMER_PRINT("Done.\n");
   return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-CudaFrameAcquire::CudaFrameAcquire(CUeglStreamConnection& connection)
+/*CudaFrameAcquire::CudaFrameAcquire(CUeglStreamConnection& connection)
                                    : m_connection(connection)
                                    , m_stream(NULL), m_resource(0) {
   CUresult result = cuEGLStreamConsumerAcquireFrame(&m_connection, &m_resource, &m_stream, -1);
@@ -192,7 +322,7 @@ bool CudaFrameAcquire::publish(bool leftFrame) {
     right_image_pub.publish(output);
   }
   return true;
-}
+}*/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -208,7 +338,7 @@ static bool execute() {
 
   std::vector<CameraDevice*> cameraDevices;
   iCameraProvider->getCameraDevices(&cameraDevices);
-  printf("CAMERA DEVICES COUNT: %d\n", cameraDevices.size());
+  //printf("CAMERA DEVICES COUNT: %d\n", cameraDevices.size());
   if (cameraDevices.size() < 2) {
     ORIGINATE_ERROR("Must have at least 2 sensors available");
   }
@@ -235,24 +365,29 @@ static bool execute() {
   iEGLStreamSettings->setPixelFormat(PIXEL_FMT_YCbCr_420_888);
   iEGLStreamSettings->setResolution(STREAM_SIZE);
   iEGLStreamSettings->setEGLDisplay(g_display.get());
-  iEGLStreamSettings->setMode(EGL_STREAM_MODE_MAILBOX);
+  //iEGLStreamSettings->setMode(EGL_STREAM_MODE_MAILBOX);
   iEGLStreamSettings->setMetadataEnable(true);
 
   PRODUCER_PRINT("Creating left stream.\n");
   iStreamSettings->setCameraDevice(lrCameras[0]);
   UniqueObj<OutputStream> streamLeft(iCaptureSession->createOutputStream(streamSettings.get()));
-  IEGLOutputStream *iStreamLeft = interface_cast<IEGLOutputStream>(streamLeft);
-  if (!iStreamLeft) {
-    ORIGINATE_ERROR("Failed to create left stream");
-  }
+  //IEGLOutputStream *iStreamLeft = interface_cast<IEGLOutputStream>(streamLeft);
+  //if (!iStreamLeft) {
+  //  ORIGINATE_ERROR("Failed to create left stream");
+  //}
 
   PRODUCER_PRINT("Creating right stream.\n");
   iStreamSettings->setCameraDevice(lrCameras[1]);
   UniqueObj<OutputStream> streamRight(iCaptureSession->createOutputStream(streamSettings.get()));
-  IEGLOutputStream *iStreamRight = interface_cast<IEGLOutputStream>(streamRight);
-  if (!iStreamRight) {
-    ORIGINATE_ERROR("Failed to create right stream");
-  }
+  //IEGLOutputStream *iStreamRight = interface_cast<IEGLOutputStream>(streamRight);
+  //if (!iStreamRight) {
+  //  ORIGINATE_ERROR("Failed to create right stream");
+  //}
+
+  PRODUCER_PRINT("Launching disparity checking consumer\n");
+  StereoConsumer disparityConsumer(streamLeft.get(), streamRight.get());
+  PROPAGATE_ERROR(disparityConsumer.initialize());
+  PROPAGATE_ERROR(disparityConsumer.waitRunning());
 
   UniqueObj<Request> request(iCaptureSession->createRequest());
   IRequest *iRequest = interface_cast<IRequest>(request);
@@ -275,11 +410,6 @@ static bool execute() {
 	  interface_cast<IAutoControlSettings>(iRequest->getAutoControlSettings());
   iAutoControlSettings->setIspDigitalGainRange(ISP_DIGITAL_GAIN_RANGE);
 
-  PRODUCER_PRINT("Launching disparity checking consumer\n");
-  StereoConsumer disparityConsumer(iStreamLeft, iStreamRight);
-  PROPAGATE_ERROR(disparityConsumer.initialize());
-  PROPAGATE_ERROR(disparityConsumer.waitRunning());
-
   PRODUCER_PRINT("Starting repeat capture requests.\n");
   if (iCaptureSession->repeat(request.get()) != STATUS_OK) {
     ORIGINATE_ERROR("Failed to start repeat capture request for preview");
@@ -291,8 +421,8 @@ static bool execute() {
   iCaptureSession->waitForIdle();
 
   PRODUCER_PRINT("Captures complete, disconnecting producer.\n");
-  iStreamLeft->disconnect();
-  iStreamRight->disconnect();
+  streamLeft.reset();
+  streamRight.reset();
 
   PROPAGATE_ERROR(disparityConsumer.shutdown());
   cameraProvider.reset();
@@ -304,7 +434,7 @@ static bool execute() {
   return true;
 }
 
-};
+}; // namespace ArgusSamples
 
 int main(int argc, char *argv[]) {
   ros::init(argc, argv, "argus_stereo_node");
@@ -316,9 +446,9 @@ int main(int argc, char *argv[]) {
   right_camera_info_pub = nh.advertise<sensor_msgs::CameraInfo>("/camera/right/camera_info", 1);
   
   if (!ArgusSamples::execute()) {
-    delete[] oBuffer;
+    //delete[] oBuffer;
     return EXIT_FAILURE;
   }
-  delete[] oBuffer;
+  //delete[] oBuffer;
   return EXIT_SUCCESS;
 }
